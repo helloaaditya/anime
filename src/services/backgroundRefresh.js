@@ -5,8 +5,11 @@ import memoryCache from './cache.js';
 class BackgroundRefreshService {
   constructor() {
     this.isRunning = false;
-    this.refreshInterval = 30 * 60 * 1000; // 30 minutes
+    this.refreshInterval = 15 * 60 * 1000; // 15 minutes (more frequent)
     this.lastRefresh = new Map();
+    this.refreshTimer = null;
+    this.retryCount = 0;
+    this.maxRetries = 3;
   }
 
   async start() {
@@ -18,9 +21,37 @@ class BackgroundRefreshService {
     // Initial refresh
     await this.refreshHomepageData();
 
-    // Set up interval
-    setInterval(async () => {
-      await this.refreshHomepageData();
+    // Set up interval with error handling
+    this.scheduleNextRefresh();
+  }
+
+  scheduleNextRefresh() {
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+    }
+
+    this.refreshTimer = setTimeout(async () => {
+      try {
+        await this.refreshHomepageData();
+        this.retryCount = 0; // Reset retry count on success
+      } catch (error) {
+        console.error('❌ Background refresh failed:', error.message);
+        this.retryCount++;
+
+        if (this.retryCount < this.maxRetries) {
+          console.log(`🔄 Retrying background refresh (${this.retryCount}/${this.maxRetries})`);
+          // Retry with exponential backoff
+          const retryDelay = Math.min(60000 * Math.pow(2, this.retryCount), 300000); // Max 5 minutes
+          setTimeout(() => this.scheduleNextRefresh(), retryDelay);
+          return;
+        } else {
+          console.error('❌ Max retries reached for background refresh');
+          this.retryCount = 0;
+        }
+      }
+
+      // Schedule next refresh
+      this.scheduleNextRefresh();
     }, this.refreshInterval);
   }
 
@@ -43,7 +74,7 @@ class BackgroundRefreshService {
       await redisService.set('home', JSON.stringify(response), {
         ex: 60 * 60 * 24, // 24 hours
       });
-      memoryCache.set('home', response, 300000); // 5 minutes
+      memoryCache.set('home', response); // Lifetime cache (no TTL)
 
       const duration = Date.now() - startTime;
       this.lastRefresh.set('home', Date.now());

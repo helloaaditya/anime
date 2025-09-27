@@ -5,6 +5,7 @@ import { swaggerUI } from '@hono/swagger-ui';
 
 import hiAnimeRoutes from './routes/routes.js';
 import backgroundRefreshService from './services/backgroundRefresh.js';
+import startupPreloadService from './services/startupPreload.js';
 
 import { AppError } from './utils/errors.js';
 import { fail } from './utils/response.js';
@@ -14,99 +15,106 @@ const app = new Hono();
 
 config();
 
-const origins = process.env.ORIGIN ? process.env.ORIGIN.split(',') : '*';
+// Initialize app with preloaded data
+const initializeApp = async () => {
+  const origins = process.env.ORIGIN ? process.env.ORIGIN.split(',') : '*';
 
-// third party middlewares
-app.use(
-  '*',
-  cors({
-    origin: origins,
-    allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowHeaders: '*',
-  })
-);
+  // third party middlewares
+  app.use(
+    '*',
+    cors({
+      origin: origins,
+      allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      allowHeaders: '*',
+    })
+  );
 
-// Apply the rate limiting middleware to all requests (lazy loaded)
-app.use('*', async (c, next) => {
-  // Only apply rate limiting to API routes
-  if (c.req.path.startsWith('/api/')) {
-    const { rateLimiter } = await import('hono-rate-limiter');
-    return rateLimiter({
-      windowMs: process.env.RATE_LIMIT_WINDOW_MS || 60000,
-      limit: process.env.RATE_LIMIT_LIMIT || 100,
-      standardHeaders: 'draft-6',
-      keyGenerator: () => '<unique_key>',
-    })(c, next);
-  }
-  return next();
-});
-
-// middlewares
-
-// routes
-
-app.use('/api/v1/*', logger());
-
-app.get('/', (c) => {
-  c.status(200);
-  return c.text('welcome to anime API 🎉 start by hitting /api/v1 for documentation');
-});
-app.get('/ping', (c) => {
-  return c.text('pong');
-});
-
-app.get('/health', async (c) => {
-  const { default: performanceMonitor } = await import('./utils/performance.js');
-  const { default: memoryCache } = await import('./services/cache.js');
-
-  return c.json({
-    status: 'healthy',
-    uptime: performanceMonitor.getUptime(),
-    cache: {
-      size: memoryCache.size(),
-    },
-    timestamp: new Date().toISOString(),
+  // Apply the rate limiting middleware to all requests (lazy loaded)
+  app.use('*', async (c, next) => {
+    // Only apply rate limiting to API routes
+    if (c.req.path.startsWith('/api/')) {
+      const { rateLimiter } = await import('hono-rate-limiter');
+      return rateLimiter({
+        windowMs: process.env.RATE_LIMIT_WINDOW_MS || 60000,
+        limit: process.env.RATE_LIMIT_LIMIT || 100,
+        standardHeaders: 'draft-6',
+        keyGenerator: () => '<unique_key>',
+      })(c, next);
+    }
+    return next();
   });
-});
 
-app.get('/preload', async (c) => {
-  try {
-    // Trigger background refresh
-    await backgroundRefreshService.refreshHomepageData();
+  // middlewares
+
+  // routes
+
+  app.use('/api/v1/*', logger());
+
+  app.get('/', (c) => {
+    c.status(200);
+    return c.text('welcome to anime API 🎉 start by hitting /api/v1 for documentation');
+  });
+  app.get('/ping', (c) => {
+    return c.text('pong');
+  });
+
+  app.get('/health', async (c) => {
+    const { default: performanceMonitor } = await import('./utils/performance.js');
+    const { default: memoryCache } = await import('./services/cache.js');
+
     return c.json({
-      success: true,
-      message: 'Cache preloaded successfully',
+      status: 'healthy',
+      uptime: performanceMonitor.getUptime(),
+      preload: startupPreloadService.getStatus(),
+      cache: {
+        size: memoryCache.size(),
+      },
       timestamp: new Date().toISOString(),
     });
-  } catch (error) {
-    return c.json(
-      {
-        success: false,
-        message: error.message,
-      },
-      500
-    );
-  }
-});
-app.route('/api/v1', hiAnimeRoutes);
+  });
 
-// Start background refresh service
-backgroundRefreshService.start();
+  app.get('/preload', async (c) => {
+    try {
+      // Trigger background refresh
+      await backgroundRefreshService.refreshHomepageData();
+      return c.json({
+        success: true,
+        message: 'Cache preloaded successfully',
+        timestamp: new Date().toISOString(),
+      });
+    } catch (error) {
+      return c.json(
+        {
+          success: false,
+          message: error.message,
+        },
+        500
+      );
+    }
+  });
+  app.route('/api/v1', hiAnimeRoutes);
 
-app.get('/doc', async (c) => {
-  const { default: hianimeApiDocs } = await import('./utils/swaggerUi.js');
-  return c.json(hianimeApiDocs);
-});
+  // Start services - wait for preload to complete before starting server
+  await startupPreloadService.preloadCriticalData();
+  backgroundRefreshService.start();
 
-// Use the middleware to serve Swagger UI at /ui
-app.get('/ui', swaggerUI({ url: '/doc' }));
-app.onError((err, c) => {
-  if (err instanceof AppError) {
-    return fail(c, err.message, err.statusCode, err.details);
-  }
-  console.error('unexpacted Error :' + err.message);
+  app.get('/doc', async (c) => {
+    const { default: hianimeApiDocs } = await import('./utils/swaggerUi.js');
+    return c.json(hianimeApiDocs);
+  });
 
-  return fail(c);
-});
+  // Use the middleware to serve Swagger UI at /ui
+  app.get('/ui', swaggerUI({ url: '/doc' }));
+  app.onError((err, c) => {
+    if (err instanceof AppError) {
+      return fail(c, err.message, err.statusCode, err.details);
+    }
+    console.error('unexpacted Error :' + err.message);
 
-export default app;
+    return fail(c);
+  });
+
+  return app;
+};
+
+export default initializeApp;

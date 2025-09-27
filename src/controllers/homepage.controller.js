@@ -16,8 +16,8 @@ const homepageController = async () => {
   if (homePageData) {
     console.log('REDIS CACHE HIT');
     const parsedData = JSON.parse(homePageData);
-    // Store in memory cache for faster subsequent access
-    memoryCache.set('home', parsedData, 300000); // 5 minutes
+    // Store in memory cache for lifetime (no TTL)
+    memoryCache.set('home', parsedData);
     return parsedData;
   }
 
@@ -36,7 +36,7 @@ const homepageController = async () => {
   await redisService.set('home', JSON.stringify(response), {
     ex: 60 * 60 * 24, // 24 hours
   });
-  memoryCache.set('home', response, 300000); // 5 minutes
+  memoryCache.set('home', response); // Lifetime cache (no TTL)
 
   return response;
 };

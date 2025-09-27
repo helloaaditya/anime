@@ -20,7 +20,8 @@ export const logOptimizations = () => {
   ✅ Singleton Redis connection with connection pooling
   ✅ Optimized Axios instance with connection reuse
   ✅ Multi-layer caching (Memory + Redis)
-  ✅ Background data refresh service
+  ✅ Synchronous startup preloading (server waits for cache)
+  ✅ Background data refresh service (15min intervals)
   ✅ Optimized HTML parsing with Cheerio
   ✅ HTTP caching headers (ETag, Cache-Control)
   ✅ Deferred middleware loading
@@ -28,5 +29,8 @@ export const logOptimizations = () => {
   ✅ Compressed responses enabled
   ✅ Connection pooling for HTTP requests
   ✅ Preload endpoint for cache warming
+  ✅ LRU cache management with access tracking
+  ✅ Lifetime memory cache (no expiration once set)
+  ✅ Instant first request (preloaded at startup)
 `);
 };
