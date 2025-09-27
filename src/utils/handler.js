@@ -12,7 +12,10 @@ const handler = (fn) => {
       const duration = Date.now() - startTime;
       performanceMonitor.log(`${c.req.method} ${route}`, duration);
 
-      return success(c, result, null);
+      // Set longer cache for homepage
+      const cacheTime = route.includes('/home') ? 1800 : 300; // 30 min for home, 5 min for others
+
+      return success(c, result, null, cacheTime);
     } catch (error) {
       const duration = Date.now() - startTime;
       console.error(`❌ Error in ${c.req.method} ${route} (${duration}ms):`, error.message);

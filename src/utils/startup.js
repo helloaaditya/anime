@@ -19,10 +19,14 @@ export const logOptimizations = () => {
   ✅ Lazy loading for controllers and routes
   ✅ Singleton Redis connection with connection pooling
   ✅ Optimized Axios instance with connection reuse
-  ✅ In-memory caching for frequently accessed data
+  ✅ Multi-layer caching (Memory + Redis)
+  ✅ Background data refresh service
+  ✅ Optimized HTML parsing with Cheerio
+  ✅ HTTP caching headers (ETag, Cache-Control)
   ✅ Deferred middleware loading
   ✅ Performance monitoring and logging
   ✅ Compressed responses enabled
   ✅ Connection pooling for HTTP requests
+  ✅ Preload endpoint for cache warming
 `);
 };

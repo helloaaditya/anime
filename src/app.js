@@ -4,6 +4,7 @@ import { config } from 'dotenv';
 import { swaggerUI } from '@hono/swagger-ui';
 
 import hiAnimeRoutes from './routes/routes.js';
+import backgroundRefreshService from './services/backgroundRefresh.js';
 
 import { AppError } from './utils/errors.js';
 import { fail } from './utils/response.js';
@@ -67,7 +68,30 @@ app.get('/health', async (c) => {
     timestamp: new Date().toISOString(),
   });
 });
+
+app.get('/preload', async (c) => {
+  try {
+    // Trigger background refresh
+    await backgroundRefreshService.refreshHomepageData();
+    return c.json({
+      success: true,
+      message: 'Cache preloaded successfully',
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error) {
+    return c.json(
+      {
+        success: false,
+        message: error.message,
+      },
+      500
+    );
+  }
+});
 app.route('/api/v1', hiAnimeRoutes);
+
+// Start background refresh service
+backgroundRefreshService.start();
 
 app.get('/doc', async (c) => {
   const { default: hianimeApiDocs } = await import('./utils/swaggerUi.js');

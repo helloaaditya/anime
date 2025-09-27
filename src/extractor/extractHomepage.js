@@ -1,7 +1,12 @@
 import * as cheerio from 'cheerio';
 
 export const extractHomepage = (html) => {
-  const $ = cheerio.load(html);
+  const $ = cheerio.load(html, {
+    // Optimize parsing
+    normalizeWhitespace: true,
+    xmlMode: false,
+    decodeEntities: true,
+  });
 
   const response = {
     spotlight: [],
