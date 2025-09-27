@@ -1,40 +1,31 @@
 import { axiosInstance } from '../services/axiosInstance';
 import { validationError } from '../utils/errors';
 import { extractHomepage } from '../extractor/extractHomepage';
-
-import { Redis } from '@upstash/redis';
+import redisService from '../services/redis';
 
 const homepageController = async () => {
+  // Check cache first
+  const homePageData = await redisService.get('home');
+  if (homePageData) {
+    console.log('CACHE HIT');
+    return JSON.parse(homePageData);
+  }
+
+  console.log('CACHE MISS');
   const result = await axiosInstance('/home');
 
-  const isRedisEnv = Boolean(
-    process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN
-  );
-  if (isRedisEnv) {
-    const redis = Redis.fromEnv();
-    const homePageData = await redis.get('home');
-
-    if (homePageData) {
-      console.log('CACHE HIT');
-      return homePageData;
-    }
-    console.log('CACHE MISS');
-
-    if (!result.success) {
-      throw new validationError(result.message);
-    }
-    const response = extractHomepage(result.data);
-    await redis.set('home', JSON.stringify(response), {
-      ex: 60 * 60 * 24,
-    });
-    return response;
-  } else {
-    if (!result.success) {
-      throw new validationError(result.message);
-    }
-    const response = extractHomepage(result.data);
-    return response;
+  if (!result.success) {
+    throw new validationError(result.message);
   }
+
+  const response = extractHomepage(result.data);
+
+  // Cache the response
+  await redisService.set('home', JSON.stringify(response), {
+    ex: 60 * 60 * 24, // 24 hours
+  });
+
+  return response;
 };
 
 export default homepageController;

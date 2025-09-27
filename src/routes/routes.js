@@ -1,34 +1,78 @@
 import { Hono } from 'hono';
-import documentationController from '../controllers/documentation.controller';
 import handler from '../utils/handler';
 
-// controllers
-import homepageController from '../controllers/homepage.controller';
-import detailpageController from '../controllers/detailpage.controller';
-import listpageController from '../controllers/listpage.controller';
-import searchController from '../controllers/search.controller';
-import suggestionController from '../controllers/suggestion.controller';
-import charactersController from '../controllers/characters.controller';
-import characterDetailConroller from '../controllers/characterDetail.controller';
-import episodesController from '../controllers/episodes.controller';
-import serversController from '../controllers/serversController';
-import streamController from '../controllers/streamController';
-import allGenresController from '../controllers/allGenres.controller';
+// Lazy load controllers for faster startup
+const loadController = async (controllerPath) => {
+  const module = await import(controllerPath);
+  return module.default;
+};
 
 const router = new Hono();
 
-router.get('/', handler(documentationController));
-router.get('/home', handler(homepageController));
-router.get('/anime/:id', handler(detailpageController));
-router.get('/animes/:query/:category?', handler(listpageController));
-router.get('/search', handler(searchController));
-router.get('/suggestion', handler(suggestionController));
-router.get('/characters/:id', handler(charactersController));
-router.get('/character/:id', handler(characterDetailConroller));
-router.get('/episodes/:id', handler(episodesController));
-router.get('/servers', handler(serversController));
-router.get('/stream', handler(streamController));
-router.get('/genres', handler(allGenresController));
+// Lazy-loaded route handlers
+router.get('/', async (c) => {
+  const documentationController = await loadController(
+    '../controllers/documentation.controller.js'
+  );
+  return handler(documentationController)(c);
+});
+
+router.get('/home', async (c) => {
+  const homepageController = await loadController('../controllers/homepage.controller.js');
+  return handler(homepageController)(c);
+});
+
+router.get('/anime/:id', async (c) => {
+  const detailpageController = await loadController('../controllers/detailpage.controller.js');
+  return handler(detailpageController)(c);
+});
+
+router.get('/animes/:query/:category?', async (c) => {
+  const listpageController = await loadController('../controllers/listpage.controller.js');
+  return handler(listpageController)(c);
+});
+
+router.get('/search', async (c) => {
+  const searchController = await loadController('../controllers/search.controller.js');
+  return handler(searchController)(c);
+});
+
+router.get('/suggestion', async (c) => {
+  const suggestionController = await loadController('../controllers/suggestion.controller.js');
+  return handler(suggestionController)(c);
+});
+
+router.get('/characters/:id', async (c) => {
+  const charactersController = await loadController('../controllers/characters.controller.js');
+  return handler(charactersController)(c);
+});
+
+router.get('/character/:id', async (c) => {
+  const characterDetailConroller = await loadController(
+    '../controllers/characterDetail.controller.js'
+  );
+  return handler(characterDetailConroller)(c);
+});
+
+router.get('/episodes/:id', async (c) => {
+  const episodesController = await loadController('../controllers/episodes.controller.js');
+  return handler(episodesController)(c);
+});
+
+router.get('/servers', async (c) => {
+  const serversController = await loadController('../controllers/serversController.js');
+  return handler(serversController)(c);
+});
+
+router.get('/stream', async (c) => {
+  const streamController = await loadController('../controllers/streamController.js');
+  return handler(streamController)(c);
+});
+
+router.get('/genres', async (c) => {
+  const allGenresController = await loadController('../controllers/allGenres.controller.js');
+  return handler(allGenresController)(c);
+});
 router.get('/*', (c) => {
   return c.html(`
         <!DOCTYPE html>

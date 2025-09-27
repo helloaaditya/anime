@@ -1,14 +1,12 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { config } from 'dotenv';
-import { rateLimiter } from 'hono-rate-limiter';
 import { swaggerUI } from '@hono/swagger-ui';
 
 import hiAnimeRoutes from './routes/routes.js';
 
 import { AppError } from './utils/errors.js';
 import { fail } from './utils/response.js';
-import hianimeApiDocs from './utils/swaggerUi.js';
 import { logger } from 'hono/logger';
 
 const app = new Hono();
@@ -27,16 +25,20 @@ app.use(
   })
 );
 
-// Apply the rate limiting middleware to all requests.
-app.use(
-  rateLimiter({
-    windowMs: process.env.RATE_LIMIT_WINDOW_MS || 60000,
-    limit: process.env.RATE_LIMIT_LIMIT || 100,
-    standardHeaders: 'draft-6', // draft-6: `RateLimit-*` headers; draft-7: combined `RateLimit` header
-    keyGenerator: () => '<unique_key>', // Method to generate custom identifiers for clients.
-    // store: ... , // Redis, MemoryStore, etc. See below.
-  })
-);
+// Apply the rate limiting middleware to all requests (lazy loaded)
+app.use('*', async (c, next) => {
+  // Only apply rate limiting to API routes
+  if (c.req.path.startsWith('/api/')) {
+    const { rateLimiter } = await import('hono-rate-limiter');
+    return rateLimiter({
+      windowMs: process.env.RATE_LIMIT_WINDOW_MS || 60000,
+      limit: process.env.RATE_LIMIT_LIMIT || 100,
+      standardHeaders: 'draft-6',
+      keyGenerator: () => '<unique_key>',
+    })(c, next);
+  }
+  return next();
+});
 
 // middlewares
 
@@ -51,9 +53,26 @@ app.get('/', (c) => {
 app.get('/ping', (c) => {
   return c.text('pong');
 });
+
+app.get('/health', async (c) => {
+  const { default: performanceMonitor } = await import('./utils/performance.js');
+  const { default: memoryCache } = await import('./services/cache.js');
+
+  return c.json({
+    status: 'healthy',
+    uptime: performanceMonitor.getUptime(),
+    cache: {
+      size: memoryCache.size(),
+    },
+    timestamp: new Date().toISOString(),
+  });
+});
 app.route('/api/v1', hiAnimeRoutes);
 
-app.get('/doc', (c) => c.json(hianimeApiDocs));
+app.get('/doc', async (c) => {
+  const { default: hianimeApiDocs } = await import('./utils/swaggerUi.js');
+  return c.json(hianimeApiDocs);
+});
 
 // Use the middleware to serve Swagger UI at /ui
 app.get('/ui', swaggerUI({ url: '/doc' }));

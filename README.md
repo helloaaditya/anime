@@ -800,3 +800,5 @@ Don't forget to leave a star 🌟.
   src="https://starchart.cc/yahyamomin/hianime-API.svg?variant=adaptive"
   alt=""
 />
+#   a n i m e  
+ 
